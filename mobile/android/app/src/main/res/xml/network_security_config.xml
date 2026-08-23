@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 9+ (API 28+) blocks plain HTTP by default. The Next.js backend
+  runs on plain HTTP on the local network (no TLS cert for a bare LAN IP),
+  so this scopes a cleartext exception to only that IP/host instead of
+  allowing cleartext app-wide — update the IP below if the backend's LAN
+  address changes (see AppConfig in lib/config.dart).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.7</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
