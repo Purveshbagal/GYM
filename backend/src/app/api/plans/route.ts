@@ -5,7 +5,7 @@ import { getAuth } from "@/lib/auth";
 
 export async function GET() {
   await connectDB();
-  const plans = await MembershipPlan.find().sort({ durationMonths: 1 });
+  const plans = await MembershipPlan.find({ active: { $ne: false } }).sort({ durationMonths: 1 });
   return NextResponse.json({ plans });
 }
 
