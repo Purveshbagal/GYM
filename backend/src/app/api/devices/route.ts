@@ -7,8 +7,30 @@ import { testDeviceConnection, registerEventListener } from "@/lib/isapi";
 export async function GET(req: NextRequest) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await connectDB();
-  const devices = await Device.find().select("-password");
-  return NextResponse.json({ devices });
+  const devices = await Device.find();
+
+  // Live-check each device rather than trusting the last stored flag, so a
+  // device that has come back online since it was added/last synced is
+  // reflected immediately instead of staying stuck "Offline".
+  await Promise.all(
+    devices.map(async (device) => {
+      try {
+        const test = await testDeviceConnection(device);
+        device.online = test.ok;
+        device.lastSeenAt = new Date();
+        await device.save();
+      } catch {
+        device.online = false;
+        await device.save();
+      }
+    })
+  );
+
+  const safeDevices = devices.map((d) => {
+    const { password: _pw, ...safe } = d.toObject();
+    return safe;
+  });
+  return NextResponse.json({ devices: safeDevices });
 }
 
 export async function POST(req: NextRequest) {

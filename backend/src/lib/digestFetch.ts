@@ -12,11 +12,23 @@ export async function digestFetch(
   password: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const first = await fetch(url, { ...init, headers: { ...init.headers } });
+  const first = await fetch(url, {
+    ...init,
+    headers: { ...init.headers },
+    signal: init.signal ?? AbortSignal.timeout(5000),
+  });
   if (first.status !== 401) return first;
 
   const authHeader = first.headers.get("www-authenticate");
   if (!authHeader) return first;
+
+  if (authHeader.toLowerCase().startsWith("basic")) {
+    const basicValue = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+    return fetch(url, {
+      ...init,
+      headers: { ...init.headers, Authorization: basicValue },
+    });
+  }
 
   const challenge = parseDigestChallenge(authHeader);
   if (!challenge) return first;
