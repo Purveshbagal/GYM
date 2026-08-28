@@ -5,7 +5,7 @@ import MembershipPlan from "@/models/MembershipPlan";
 import Payment from "@/models/Payment";
 import { getAuth } from "@/lib/auth";
 import { addMonths } from "@/lib/membership";
-import { queueDeviceJob } from "@/lib/deviceJobs";
+import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 export async function GET(req: NextRequest) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -57,6 +57,12 @@ export async function POST(req: NextRequest) {
   const membershipStart = new Date();
   const membershipEnd = addMonths(membershipStart, plan.durationMonths);
 
+  // No manual terminal assignment: the gym's active, agent-configured
+  // Device is resolved automatically (by agentId, never IP), same as
+  // biometric enrollment does. `deviceId` is honored only if it happens to
+  // already point at a properly agent-configured device.
+  const device = await resolveActiveGymDevice(deviceId);
+
   const member = await Member.create({
     deviceUserId,
     name,
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
     membershipStart,
     membershipEnd,
     status: "active",
-    device: deviceId || undefined,
+    device: device?._id,
   });
 
   await Payment.create({
@@ -83,9 +89,9 @@ export async function POST(req: NextRequest) {
   });
 
   let deviceSync: unknown = null;
-  if (deviceId) {
+  if (device) {
     try {
-      deviceSync = await queueDeviceJob(deviceId, member._id, "CREATE_USER", {
+      deviceSync = await queueDeviceJob(device._id, member._id, "CREATE_USER", {
         employeeNo: deviceUserId,
         name,
         validFrom: membershipStart.toISOString(),

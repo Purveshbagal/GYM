@@ -1,41 +1,13 @@
 import { NextResponse } from "next/server";
 import Member from "@/models/Member";
-import Device from "@/models/Device";
 import DeviceJob from "@/models/DeviceJob";
+import { resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 // How stale a device's last heartbeat can be before we consider its agent
 // offline and refuse to queue a job that would otherwise sit PENDING
 // forever with no one to pick it up (agent heartbeats every 30s - see
 // agent/src/heartbeat.ts).
 const AGENT_STALE_MS = 90_000;
-
-/**
- * Finds the biometric Device/Agent a member's enrollment job should go to.
- * Members are never required to have one manually assigned (the old
- * Add Member terminal dropdown is gone) - this resolves the gym's active,
- * agent-configured Device automatically, identified by agentId (the stable
- * identity), not by IP. A member-level `device` is still honored if one
- * happens to be set (e.g. an older record), but is no longer required.
- *
- * There's currently no per-gym scoping field on Member, and the app is
- * single-gym in practice, so "the gym's device" is simply the most
- * recently active agent-configured Device system-wide. If/when Member
- * gains its own gymId, this is the one place that would need to filter by
- * it too.
- *
- * A member-level `device` from before agent provisioning existed (or from
- * the app's now-removed practice of defaulting to whatever device happened
- * to be first in the list) may point at a device with no agentId at all -
- * that's not usable, so it's treated the same as "not assigned" and falls
- * through to auto-resolution rather than hard-failing.
- */
-async function resolveMemberDevice(member: InstanceType<typeof Member>) {
-  if (member.device) {
-    const assigned = await Device.findById(member.device);
-    if (assigned?.agentId) return assigned;
-  }
-  return Device.findOne({ agentId: { $exists: true, $ne: null } }).sort({ lastSeenAt: -1 });
-}
 
 /**
  * Shared by the fingerprint and face enrollment routes: both need the
@@ -52,7 +24,7 @@ export async function createMemberEnrollmentJob(
     return { error: NextResponse.json({ success: false, message: "Member not found", code: "NOT_FOUND" }, { status: 404 }) };
   }
 
-  const device = await resolveMemberDevice(member);
+  const device = await resolveActiveGymDevice(member.device);
   if (!device || !device.agentId) {
     return {
       error: NextResponse.json(

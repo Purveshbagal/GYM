@@ -2,6 +2,26 @@ import Device from "@/models/Device";
 import DeviceJob from "@/models/DeviceJob";
 
 /**
+ * Resolves the Device a gym-scoped action should target, without requiring
+ * the caller to know a specific device id. Members are never required to
+ * have a manually assigned terminal - the app is single-gym in practice, so
+ * "the gym's device" is the most recently active agent-configured Device
+ * system-wide (matched by agentId, never by IP).
+ *
+ * `explicitDeviceId` (e.g. a member's stored `device` field, or a value the
+ * client passed) is honored only if it actually resolves to a device with a
+ * configured agent - a stale/legacy device with no agentId is treated the
+ * same as no explicit id at all, and falls through to auto-resolution.
+ */
+export async function resolveActiveGymDevice(explicitDeviceId?: unknown) {
+  if (explicitDeviceId) {
+    const explicit = await Device.findById(explicitDeviceId);
+    if (explicit?.agentId) return explicit;
+  }
+  return Device.findOne({ agentId: { $exists: true, $ne: null } }).sort({ lastSeenAt: -1 });
+}
+
+/**
  * Queues a device-lifecycle job (CREATE_USER/SYNC_USER/DISABLE_ACCESS/
  * DELETE_USER) for the Gym Device Agent to execute. These replace the old
  * direct backend-to-device ISAPI calls in lib/isapi.ts, which only ever
