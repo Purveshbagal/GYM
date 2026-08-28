@@ -3,6 +3,7 @@ export const metadata = {
   description: "API backend for the Gym Management app",
 };
 
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
