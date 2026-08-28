@@ -31,10 +31,8 @@
  * hash is always preserved.
  */
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import "dotenv/config";
-import Device from "../src/models/Device";
+import { provisionDeviceAgent } from "../src/lib/deviceProvisioning";
 
 function arg(name: string, fallback?: string) {
   const idx = process.argv.indexOf(`--${name}`);
@@ -49,8 +47,8 @@ async function main() {
   const username = arg("username");
   const password = arg("password");
   const port = Number(arg("port", "80"));
-  const requestedAgentId = arg("agent-id");
-  const requestedAgentToken = arg("agent-token");
+  const agentId = arg("agent-id");
+  const agentToken = arg("agent-token");
 
   if (!gymId || !name || !ip || !username || !password) {
     console.error(
@@ -62,54 +60,20 @@ async function main() {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/gym";
   await mongoose.connect(uri);
 
-  // Stable identity: if an agentId was supplied AND it already exists,
-  // that's the ONLY key used to find the device to update — IP is never
-  // part of the lookup in that case, so changing IP can never spawn a
-  // second Agent no matter how many times it changes.
-  const byAgentId = requestedAgentId
-    ? await Device.findOne({ agentId: requestedAgentId }).select("+agentTokenHash")
-    : null;
-
-  // Only when there's no agentId match yet (true first-time provisioning,
-  // whether or not a specific agentId was requested) fall back to gym+ip,
-  // purely to attach to a pre-existing app-created device (which has no
-  // agentId) instead of creating a disconnected duplicate.
-  const byGymAndIp = !byAgentId ? await Device.findOne({ gymId, ip }).select("+agentTokenHash") : null;
-
-  const existing = byAgentId ?? byGymAndIp;
-
-  const agentId = existing?.agentId || requestedAgentId || `AGENT-${gymId}-${crypto.randomBytes(3).toString("hex")}`;
-
-  // Never regenerate/rotate the hash unless the caller explicitly asked
-  // for a new token. Preserves the existing credential across IP/name/
-  // password updates.
-  let agentToken: string | null = null;
-  let agentTokenHash = existing?.agentTokenHash;
-  if (!agentTokenHash || requestedAgentToken) {
-    agentToken = requestedAgentToken || crypto.randomBytes(24).toString("base64url");
-    agentTokenHash = await bcrypt.hash(agentToken, 10);
-  }
-
-  const device = existing
-    ? await Device.findByIdAndUpdate(
-        existing._id,
-        { name, ip, port, username, password, gymId, agentId, agentTokenHash },
-        { new: true }
-      )
-    : await Device.create({ name, ip, port, username, password, gymId, agentId, agentTokenHash });
+  const result = await provisionDeviceAgent({ gymId, name, ip, port, username, password, agentId, agentToken });
 
   console.log(
-    existing
-      ? `\nExisting device found (matched by ${byAgentId ? "agentId" : "gym+ip"}) — updated in place, identity preserved.`
-      : "\nNo existing device found — created a new one."
+    result.matchedBy === "created"
+      ? "\nNo existing device found — created a new one."
+      : `\nExisting device found (matched by ${result.matchedBy}) — updated in place, identity preserved.`
   );
   console.log("\nDevice state:\n");
-  console.log(`  Gym ID:       ${gymId}`);
-  console.log(`  Agent ID:     ${agentId}`);
-  console.log(`  IP:           ${ip}`);
-  console.log(`  Device Mongo ID: ${device._id}`);
-  if (agentToken) {
-    console.log(`\n  Agent Token:  ${agentToken}`);
+  console.log(`  Gym ID:       ${result.gymId}`);
+  console.log(`  Agent ID:     ${result.agentId}`);
+  console.log(`  IP:           ${result.ip}`);
+  console.log(`  Device Mongo ID: ${result.deviceId}`);
+  if (result.agentToken) {
+    console.log(`\n  Agent Token:  ${result.agentToken}`);
     console.log("\n  This token is shown only once — it is stored as a bcrypt hash, not recoverable.");
     console.log("  Enter Gym ID / Agent ID / Agent Token above into the Gym Device Agent setup wizard.\n");
   } else {
