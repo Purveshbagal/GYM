@@ -17,7 +17,8 @@ const AGENT_STALE_MS = 90_000;
  */
 export async function createMemberEnrollmentJob(
   memberId: string,
-  type: "ENROLL_FINGERPRINT" | "ENROLL_FACE"
+  type: "ENROLL_FINGERPRINT" | "ENROLL_FACE" | "ENROLL_FACE_PHOTO",
+  extraPayload?: Record<string, unknown>
 ): Promise<{ error: NextResponse } | { job: InstanceType<typeof DeviceJob> }> {
   const member = await Member.findById(memberId);
   if (!member) {
@@ -44,7 +45,7 @@ export async function createMemberEnrollmentJob(
     };
   }
 
-  const payload: Record<string, unknown> = { employeeNo: member.deviceUserId };
+  const payload: Record<string, unknown> = { employeeNo: member.deviceUserId, ...extraPayload };
   if (type === "ENROLL_FINGERPRINT") payload.fingerNo = 1;
 
   const job = await DeviceJob.create({

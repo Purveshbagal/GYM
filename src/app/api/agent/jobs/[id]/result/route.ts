@@ -7,11 +7,12 @@ import Member from "@/models/Member";
 const MAX_ATTEMPTS = 5;
 
 // Enrollment jobs (fingerprint/face) already have their own internal
-// wait/retry behavior (fingerprint capture, or up to ~2 minutes polling
-// for a local face enrollment) - a device-level failure there is a real
-// answer ("member didn't finish enrolling in time"), not a transient
-// blip worth silently re-queuing forever the way GET_DEVICE_STATUS is.
-const NO_AUTO_RETRY_TYPES = new Set(["ENROLL_FINGERPRINT", "ENROLL_FACE"]);
+// wait/retry behavior (fingerprint capture, up to ~2 minutes polling for a
+// local face enrollment, or a single FaceDataRecord push) - a device-level
+// failure there is a real answer ("member didn't finish enrolling in
+// time"/"device rejected the photo"), not a transient blip worth silently
+// re-queuing forever the way GET_DEVICE_STATUS is.
+const NO_AUTO_RETRY_TYPES = new Set(["ENROLL_FINGERPRINT", "ENROLL_FACE", "ENROLL_FACE_PHOTO"]);
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   await connectDB();
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (job.member && job.type === "ENROLL_FINGERPRINT") {
       await Member.updateOne({ _id: job.member }, { $set: { fingerprintEnrolled: true, biometricEnrolled: true } });
-    } else if (job.member && job.type === "ENROLL_FACE") {
+    } else if (job.member && (job.type === "ENROLL_FACE" || job.type === "ENROLL_FACE_PHOTO")) {
       await Member.updateOne({ _id: job.member }, { $set: { faceEnrolled: true, biometricEnrolled: true } });
     }
   } else {
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       job.status = job.attempts >= MAX_ATTEMPTS ? "FAILED" : "PENDING"; // re-queue for the next poll
     }
   }
+
+  // The uploaded photo only ever needs to exist long enough for the agent
+  // to fetch and push it once - once the job is resolved (either way),
+  // there's no reason to keep raw biometric image bytes sitting in Mongo.
+  if (job.type === "ENROLL_FACE_PHOTO" && job.payload && typeof job.payload === "object" && "photoBase64" in job.payload) {
+    job.payload = { ...job.payload, photoBase64: undefined };
+    job.markModified("payload");
+  }
+
   await job.save();
 
   return NextResponse.json({ success: true, message: "Job result recorded", data: { jobId: String(job._id), status: job.status } });
