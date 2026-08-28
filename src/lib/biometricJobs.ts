@@ -22,9 +22,18 @@ const AGENT_STALE_MS = 90_000;
  * recently active agent-configured Device system-wide. If/when Member
  * gains its own gymId, this is the one place that would need to filter by
  * it too.
+ *
+ * A member-level `device` from before agent provisioning existed (or from
+ * the app's now-removed practice of defaulting to whatever device happened
+ * to be first in the list) may point at a device with no agentId at all -
+ * that's not usable, so it's treated the same as "not assigned" and falls
+ * through to auto-resolution rather than hard-failing.
  */
 async function resolveMemberDevice(member: InstanceType<typeof Member>) {
-  if (member.device) return Device.findById(member.device);
+  if (member.device) {
+    const assigned = await Device.findById(member.device);
+    if (assigned?.agentId) return assigned;
+  }
   return Device.findOne({ agentId: { $exists: true, $ne: null } }).sort({ lastSeenAt: -1 });
 }
 
