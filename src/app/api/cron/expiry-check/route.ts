@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Member from "@/models/Member";
 
+export const dynamic = "force-dynamic";
+
 /**
  * The device already refuses expired members' face/fingerprint on its own
  * (Valid.endTime is set at registration/renewal time), so this endpoint

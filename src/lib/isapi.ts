@@ -1,14 +1,4 @@
-// The digest-auth request plumbing lives in shared/isapi so the standalone
-// Windows Gym Device Agent can use the exact same code without depending on
-// the Next.js runtime. Do not re-implement it here.
-const { isapiRequest: sharedIsapiRequest } = require("../../../shared/isapi/isapiClient") as {
-  isapiRequest: (
-    device: DeviceConfig,
-    path: string,
-    method: string,
-    body?: unknown
-  ) => Promise<{ ok: boolean; status: number; body: unknown }>;
-};
+import { isapiRequest as sharedIsapiRequest } from "./isapiClient";
 
 export type DeviceConfig = {
   ip: string;
