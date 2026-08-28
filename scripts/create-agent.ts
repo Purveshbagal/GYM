@@ -43,17 +43,26 @@ async function main() {
   const agentToken = crypto.randomBytes(24).toString("base64url");
   const agentTokenHash = await bcrypt.hash(agentToken, 10);
 
-  const device = await Device.create({
-    name,
-    ip,
-    port,
-    username,
-    password,
-    gymId,
-    agentId,
-    agentTokenHash,
-  });
+  // Match the same physical terminal by gym + IP. Members are linked to a
+  // Device by its _id (set via the app's "Add Device" flow, which creates a
+  // Device with no agentId), so provisioning must attach agentId/
+  // agentTokenHash to that SAME document rather than creating a new,
+  // disconnected one - otherwise members stay pointed at a device the
+  // agent can never authenticate as.
+  const existing = await Device.findOne({ gymId, ip });
+  const device = existing
+    ? await Device.findByIdAndUpdate(
+        existing._id,
+        { name, port, username, password, agentId, agentTokenHash },
+        { new: true }
+      )
+    : await Device.create({ name, ip, port, username, password, gymId, agentId, agentTokenHash });
 
+  console.log(
+    existing
+      ? "\nExisting device found for this gym/IP - attached agent credentials to it (members already linked to it keep working)."
+      : "\nNo existing device for this gym/IP - created a new one."
+  );
   console.log("\nAgent provisioned. Enter these into the Gym Device Agent setup wizard:\n");
   console.log(`  Gym ID:       ${gymId}`);
   console.log(`  Agent ID:     ${agentId}`);
