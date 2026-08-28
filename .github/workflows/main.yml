@@ -21,7 +21,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            cd /var/www/gym/backend
+            cd /var/www/gym/
             git remote set-url origin https://rushiravtale:${{ secrets.GIT_TOKEN }}@github.com/Purveshbagal/GYM.git
             git fetch origin
             git reset --hard origin/main
