@@ -4,3 +4,10 @@ node_modules/
 .env*.local
 *.log
 *.tsbuildinfo
+
+# Kept locally only, removed from GitHub repo
+/agent/
+/mobile/
+/shared/
+/README.md
+/codemagic.yaml
