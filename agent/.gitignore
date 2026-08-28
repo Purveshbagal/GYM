@@ -1,9 +1,0 @@
-node_modules/
-dist/
-release/
-*.log
-
-# Real-device diagnostic output (serial number, MAC address, LAN IP) -
-# local-only, not meant for git history.
-capability-report-*.json
-raw-*.xml
