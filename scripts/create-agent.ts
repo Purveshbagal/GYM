@@ -5,9 +5,18 @@
  *   npx tsx scripts/create-agent.ts --gym GYM001 --name "Main Entrance" \
  *     --ip 192.168.1.201 --username admin --password <hikvision-password>
  *
- * Prints the agentId + agentToken ONCE — paste them into the agent's
- * first-run setup wizard. Only a bcrypt hash of the token is stored, so if
- * you lose it you must re-run this (it rotates the token for that device).
+ * By default this generates a fresh random agentId + agentToken every run
+ * (rotating the credential of whatever device matches gymId+ip — any agent
+ * already running with the old token stops authenticating the moment this
+ * runs). To pin a STATIC credential that re-running the script never
+ * changes, pass --agent-id and --agent-token explicitly:
+ *
+ *   npx tsx scripts/create-agent.ts --gym GYM001 --name "Main Entrance" \
+ *     --ip 192.168.1.201 --username admin --password <hikvision-password> \
+ *     --agent-id AGENT-GYM001-xxxxxx --agent-token <fixed-token>
+ *
+ * Only a bcrypt hash of the token is stored, so if you lose a generated
+ * token you must re-run this to get a new one (this rotates it).
  */
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
@@ -39,8 +48,8 @@ async function main() {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/gym";
   await mongoose.connect(uri);
 
-  const agentId = `AGENT-${gymId}-${crypto.randomBytes(3).toString("hex")}`;
-  const agentToken = crypto.randomBytes(24).toString("base64url");
+  const agentId = arg("agent-id") || `AGENT-${gymId}-${crypto.randomBytes(3).toString("hex")}`;
+  const agentToken = arg("agent-token") || crypto.randomBytes(24).toString("base64url");
   const agentTokenHash = await bcrypt.hash(agentToken, 10);
 
   // Match the same physical terminal by gym + IP. Members are linked to a
