@@ -52,7 +52,12 @@ export async function provisionDeviceAgent(input: ProvisionAgentInput): Promise<
   const byGymAndIp = !byAgentId ? await Device.findOne({ gymId, ip }).select("+agentTokenHash") : null;
   const existing = byAgentId ?? byGymAndIp;
 
-  const agentId = existing?.agentId || requestedAgentId || `AGENT-${gymId}-${crypto.randomBytes(3).toString("hex")}`;
+  // An explicitly requested agentId always wins, even over one already set
+  // on a device matched via the gym+ip fallback (e.g. a device that was
+  // previously auto-provisioned with a random id is being pinned to a
+  // caller-chosen static id now) — the caller's explicit intent takes
+  // priority over whatever happened to already be stored.
+  const agentId = requestedAgentId || existing?.agentId || `AGENT-${gymId}-${crypto.randomBytes(3).toString("hex")}`;
 
   let agentToken: string | null = null;
   let agentTokenHash = existing?.agentTokenHash;
