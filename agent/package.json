@@ -1,0 +1,25 @@
+{
+  "name": "gym-device-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows Gym Device Agent - bridges the gym's Hikvision terminal (local LAN, ISAPI) to the central backend (HTTPS), so the terminal never needs internet access or a public IP.",
+  "main": "dist/agent.cjs",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "setup": "tsx src/index.ts --setup",
+    "build": "node scripts/build.js",
+    "package": "npm run build && node scripts/package-exe.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.14.10",
+    "@yao-pkg/pkg": "^5.16.1",
+    "esbuild": "^0.23.1",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}
