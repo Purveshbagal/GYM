@@ -52,10 +52,17 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           );
       if (mounted) {
         final deviceUserId = res['deviceUserId'];
+        final deviceSync = res['deviceSync'] as Map<String, dynamic>?;
+        final syncFailed = deviceSync != null && deviceSync['ok'] != true;
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Member added. Device ID: $deviceUserId — enroll face/fingerprint on the terminal using this ID.'),
+            backgroundColor: syncFailed ? Colors.red : null,
+            content: Text(
+              syncFailed
+                  ? 'Member added, but the device could not be updated: ${deviceSync['error'] ?? deviceSync['body'] ?? 'unknown error'}. Try syncing the device and re-adding this member on it.'
+                  : 'Member added. Device ID: $deviceUserId — enroll face/fingerprint on the terminal using this ID.',
+            ),
             duration: const Duration(seconds: 6),
           ),
         );
@@ -156,10 +163,11 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               icon: Icons.fingerprint,
               children: [
                 DropdownButtonFormField<GymDevice>(
-                  initialValue: _device,
-                  decoration: const InputDecoration(labelText: 'Door Device (optional)', prefixIcon: Icon(Icons.sensor_door_outlined)),
+                  initialValue: _device ??= devices.length == 1 ? devices.first : null,
+                  decoration: const InputDecoration(labelText: 'Door Device', prefixIcon: Icon(Icons.sensor_door_outlined)),
                   items: devices.map((d) => DropdownMenuItem(value: d, child: Text('${d.name} (${d.ip})'))).toList(),
                   onChanged: (v) => setState(() => _device = v),
+                  validator: (v) => v == null ? 'Select the device to enroll this member on' : null,
                 ),
                 const SizedBox(height: 10),
                 Container(

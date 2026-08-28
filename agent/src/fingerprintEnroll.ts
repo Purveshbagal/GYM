@@ -8,15 +8,28 @@ import { logger } from "./logger";
 // with badXmlFormat/badXmlContent - it needs a genuine XML body.
 const { isapiRequest, isapiRequestXml } = require("../../shared/isapi/isapiClient") as {
   isapiRequest: (device: DeviceConfig, path: string, method: string, body?: unknown) => Promise<{ ok: boolean; status: number; body: unknown }>;
-  isapiRequestXml: (device: DeviceConfig, path: string, method: string, xmlBody: string) => Promise<{ ok: boolean; status: number; text: string }>;
+  isapiRequestXml: (
+    device: DeviceConfig,
+    path: string,
+    method: string,
+    xmlBody: string,
+    opts?: { timeoutMs?: number }
+  ) => Promise<{ ok: boolean; status: number; text: string }>;
 };
 const { extractTag } = require("../../shared/isapi/xml") as { extractTag: (xml: string, tag: string) => string | null };
 
 type CaptureResult = { fingerData: string; fingerPrintQuality: number };
 
+// digestFetch's default 15s timeout is too short here: this call blocks
+// until the member physically places their finger on the sensor, which
+// can reasonably take longer than a typical ISAPI request.
+const CAPTURE_TIMEOUT_MS = 60_000;
+
 async function captureFingerprint(device: DeviceConfig, fingerNo: number): Promise<CaptureResult> {
   const xmlBody = `<?xml version="1.0" encoding="UTF-8"?><CaptureFingerPrintCond><fingerNo>${fingerNo}</fingerNo></CaptureFingerPrintCond>`;
-  const res = await isapiRequestXml(device, "/ISAPI/AccessControl/CaptureFingerPrint", "POST", xmlBody);
+  const res = await isapiRequestXml(device, "/ISAPI/AccessControl/CaptureFingerPrint", "POST", xmlBody, {
+    timeoutMs: CAPTURE_TIMEOUT_MS,
+  });
 
   if (!res.ok) {
     throw new Error(`Fingerprint capture failed (HTTP ${res.status}): ${res.text.slice(0, 200)}`);

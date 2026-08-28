@@ -10,18 +10,37 @@
  * standalone Windows Gym Device Agent, which must stay independent of the
  * Next.js runtime and packages to a single .exe.
  *
+ * Ported from an earlier version of this file that added a request
+ * timeout and Basic-auth fallback: some ISAPI deployments answer with
+ * Basic instead of Digest, and an unreachable device should fail fast
+ * rather than hang the caller forever. The default timeout is
+ * deliberately generous (15s, not the original 5s) because several
+ * confirmed ISAPI calls on this device already take a few hundred ms
+ * over LAN and some firmwares are slower; callers with a genuinely
+ * unbounded wait (e.g. CaptureFingerPrint, which blocks until a member
+ * physically places a finger) MUST pass their own longer `init.signal`
+ * explicitly - see agent/src/fingerprintEnroll.ts.
+ *
  * @param {string} url
  * @param {string} username
  * @param {string} password
  * @param {RequestInit} [init]
  * @returns {Promise<Response>}
  */
+const DEFAULT_TIMEOUT_MS = 15000;
+
 async function digestFetch(url, username, password, init = {}) {
-  const first = await fetch(url, { ...init, headers: { ...init.headers } });
+  const signal = init.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+  const first = await fetch(url, { ...init, headers: { ...init.headers }, signal });
   if (first.status !== 401) return first;
 
   const authHeader = first.headers.get("www-authenticate");
   if (!authHeader) return first;
+
+  if (authHeader.toLowerCase().startsWith("basic")) {
+    const basicValue = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+    return fetch(url, { ...init, headers: { ...init.headers, Authorization: basicValue }, signal });
+  }
 
   const challenge = parseDigestChallenge(authHeader);
   if (!challenge) return first;
@@ -52,6 +71,7 @@ async function digestFetch(url, username, password, init = {}) {
   return fetch(url, {
     ...init,
     headers: { ...init.headers, Authorization: authValue },
+    signal,
   });
 }
 

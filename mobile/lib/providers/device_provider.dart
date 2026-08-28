@@ -40,4 +40,9 @@ class DeviceProvider extends ChangeNotifier {
     await fetchDevices();
     return res;
   }
+
+  Future<void> deleteDevice(String id) async {
+    await ApiService.instance.delete('/api/devices/$id');
+    await fetchDevices();
+  }
 }

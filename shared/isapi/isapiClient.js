@@ -51,13 +51,17 @@ async function isapiRequest(device, path, method, body) {
  * @param {string} path
  * @param {string} method
  * @param {string} xmlBody - a full XML document string, e.g. "<Foo><bar>1</bar></Foo>"
+ * @param {{ timeoutMs?: number }} [opts] - override digestFetch's default
+ *   15s timeout. CaptureFingerPrint blocks until a member physically
+ *   places a finger, which can legitimately take longer.
  */
-async function isapiRequestXml(device, path, method, xmlBody) {
+async function isapiRequestXml(device, path, method, xmlBody, opts = {}) {
   const url = `${baseUrl(device)}${path}`;
   const res = await digestFetch(url, device.username, device.password, {
     method,
     headers: { "Content-Type": "application/xml" },
     body: xmlBody,
+    signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
   });
   const text = await res.text();
   return { ok: res.ok, status: res.status, text };

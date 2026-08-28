@@ -71,6 +71,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
   }
 
+  Future<void> _deleteDevice(String id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Terminal'),
+        content: Text('Remove "$name" from the app? Members already enrolled on it are not affected.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await context.read<DeviceProvider>().deleteDevice(id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DeviceProvider>();
@@ -109,9 +126,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           '${d.ip}:${d.port}${d.location != null && d.location!.isNotEmpty ? ' • ${d.location}' : ''} • ${d.online ? 'Online' : 'Offline'}',
                           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.sync, color: AppColors.primary),
-                          onPressed: () => context.read<DeviceProvider>().syncDevice(d.id),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.sync, color: AppColors.primary),
+                              onPressed: () => context.read<DeviceProvider>().syncDevice(d.id),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                              onPressed: () => _deleteDevice(d.id, d.name),
+                            ),
+                          ],
                         ),
                       ),
                     );
