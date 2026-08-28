@@ -14,10 +14,10 @@ const MAX_ATTEMPTS = 5;
 const NO_AUTO_RETRY_TYPES = new Set(["ENROLL_FINGERPRINT", "ENROLL_FACE"]);
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  await connectDB();
   const agent = await getAgentAuth(req);
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
   const job = await DeviceJob.findOne({ _id: params.id, agentId: agent.agentId });
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 

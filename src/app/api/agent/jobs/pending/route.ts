@@ -10,10 +10,9 @@ import DeviceJob from "@/models/DeviceJob";
  * hand the same job to two overlapping runs.
  */
 export async function GET(req: NextRequest) {
+  await connectDB();
   const agent = await getAgentAuth(req);
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await connectDB();
 
   const jobs = await DeviceJob.find({ agentId: agent.agentId, status: "PENDING" })
     .sort({ createdAt: 1 })

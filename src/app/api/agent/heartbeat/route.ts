@@ -10,10 +10,10 @@ import Device from "@/models/Device";
  * backend can actually see over the internet).
  */
 export async function POST(req: NextRequest) {
+  await connectDB();
   const agent = await getAgentAuth(req);
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await connectDB();
   const { deviceModel, serialNumber, firmwareVersion, deviceOnline } = await req
     .json()
     .catch(() => ({}));
