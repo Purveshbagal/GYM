@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Member from "@/models/Member";
 import MembershipPlan from "@/models/MembershipPlan";
@@ -46,6 +47,9 @@ export async function POST(req: NextRequest) {
 
   if (!name || !phone || !planId) {
     return NextResponse.json({ error: "name, phone, planId required" }, { status: 400 });
+  }
+  if (!Types.ObjectId.isValid(planId)) {
+    return NextResponse.json({ error: "Invalid planId" }, { status: 400 });
   }
 
   const plan = await MembershipPlan.findById(planId);
