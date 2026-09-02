@@ -55,8 +55,13 @@ export async function POST(req: NextRequest) {
   const plan = await MembershipPlan.findById(planId);
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 
-  const memberCount = await Member.countDocuments();
-  const deviceUserId = String(1000 + memberCount + 1);
+  const [highest] = await Member.aggregate([
+    { $addFields: { deviceUserIdNum: { $toInt: "$deviceUserId" } } },
+    { $sort: { deviceUserIdNum: -1 } },
+    { $limit: 1 },
+    { $project: { deviceUserIdNum: 1 } },
+  ]);
+  const deviceUserId = String((highest?.deviceUserIdNum ?? 1000) + 1);
 
   const membershipStart = new Date();
   const membershipEnd = addMonths(membershipStart, plan.durationMonths);
