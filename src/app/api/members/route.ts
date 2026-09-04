@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Member from "@/models/Member";
 import MembershipPlan from "@/models/MembershipPlan";
@@ -68,12 +69,20 @@ export async function POST(req: NextRequest) {
   if (!name || !phone || !planId) {
     return NextResponse.json({ error: "name, phone, planId required" }, { status: 400 });
   }
+  if (!Types.ObjectId.isValid(planId)) {
+    return NextResponse.json({ error: "Invalid planId" }, { status: 400 });
+  }
 
   const plan = await MembershipPlan.findById(planId);
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 
-  const memberCount = await Member.countDocuments();
-  const deviceUserId = String(1000 + memberCount + 1);
+  const [highest] = await Member.aggregate([
+    { $addFields: { deviceUserIdNum: { $toInt: "$deviceUserId" } } },
+    { $sort: { deviceUserIdNum: -1 } },
+    { $limit: 1 },
+    { $project: { deviceUserIdNum: 1 } },
+  ]);
+  const deviceUserId = String((highest?.deviceUserIdNum ?? 1000) + 1);
 
   // Staff sometimes add a member a few days after their real join date -
   // an explicit joinDate lets the membership window (and therefore

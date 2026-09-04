@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import Device from "@/models/Device";
 import DeviceJob from "@/models/DeviceJob";
 
@@ -14,7 +15,7 @@ import DeviceJob from "@/models/DeviceJob";
  * same as no explicit id at all, and falls through to auto-resolution.
  */
 export async function resolveActiveGymDevice(explicitDeviceId?: unknown) {
-  if (explicitDeviceId) {
+  if (explicitDeviceId && Types.ObjectId.isValid(explicitDeviceId as string)) {
     const explicit = await Device.findById(explicitDeviceId);
     if (explicit?.agentId) return explicit;
   }
