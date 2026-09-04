@@ -11,10 +11,9 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
   const in7Days = new Date(now.getTime() + 7 * 86400000);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const [totalMembers, activeMembers, expiredMembers, expiringSoon, revenueThisMonth, todayVisits] =
+  const [totalMembers, activeMembers, expiredMembers, expiringSoon, totalCollection, todayVisits] =
     await Promise.all([
       Member.countDocuments(),
       Member.countDocuments({ status: "active" }),
@@ -23,8 +22,12 @@ export async function GET(req: NextRequest) {
         status: "active",
         membershipEnd: { $gte: now, $lte: in7Days },
       }),
+      // All-time total, not just this month - and only for members that
+      // still exist (deleting a member doesn't cascade-delete their
+      // Payment history, so a plain sum would over-count).
       Payment.aggregate([
-        { $match: { paidAt: { $gte: startOfMonth } } },
+        { $lookup: { from: "members", localField: "member", foreignField: "_id", as: "memberDoc" } },
+        { $match: { memberDoc: { $ne: [] } } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       AccessLog.countDocuments({ occurredAt: { $gte: startOfDay }, result: "granted" }),
@@ -35,7 +38,7 @@ export async function GET(req: NextRequest) {
     activeMembers,
     expiredMembers,
     expiringSoon,
-    revenueThisMonth: revenueThisMonth[0]?.total || 0,
+    totalCollection: totalCollection[0]?.total || 0,
     todayVisits,
   });
 }
