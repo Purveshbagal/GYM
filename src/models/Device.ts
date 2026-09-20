@@ -35,6 +35,11 @@ const DeviceSchema = new Schema(
     serialNumber: { type: String },
     firmwareVersion: { type: String },
     capabilities: { type: Schema.Types.Mixed },
+
+    // Self-reported health of the Gym Log Agent (the second Windows service
+    // that streams check-in events). Kept apart from lastSeenAt/online, which
+    // belong to the device-management agent's heartbeat.
+    logAgent: { type: Schema.Types.Mixed },
   },
   { timestamps: true }
 );
