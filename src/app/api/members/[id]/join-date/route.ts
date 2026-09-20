@@ -4,7 +4,7 @@ import Member from "@/models/Member";
 import MembershipPlan from "@/models/MembershipPlan";
 import { getAuth } from "@/lib/auth";
 import { addMonths, computeStatus } from "@/lib/membership";
-import { queueDeviceJob } from "@/lib/deviceJobs";
+import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 /**
  * Narrow, dedicated endpoint for correcting a member's join date after
@@ -41,10 +41,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   member.status = computeStatus(newEnd);
   await member.save();
 
+  const device = await resolveActiveGymDevice(member.device);
   let deviceSync: unknown = null;
-  if (member.device) {
+  if (device) {
+    if (String(member.device ?? "") !== String(device._id)) {
+      member.device = device._id;
+      await member.save();
+    }
     try {
-      deviceSync = await queueDeviceJob(member.device, member._id, "SYNC_USER", {
+      deviceSync = await queueDeviceJob(device._id, member._id, "SYNC_USER", {
         employeeNo: member.deviceUserId,
         name: member.name,
         validFrom: newStart.toISOString(),

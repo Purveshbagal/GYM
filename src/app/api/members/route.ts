@@ -5,12 +5,15 @@ import Member from "@/models/Member";
 import MembershipPlan from "@/models/MembershipPlan";
 import Payment from "@/models/Payment";
 import { getAuth } from "@/lib/auth";
-import { addMonths } from "@/lib/membership";
+import { addMonths, reconcileExpiredMembers } from "@/lib/membership";
 import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 export async function GET(req: NextRequest) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await connectDB();
+  // Self-healing: don't wait for the once-daily cron script to flip
+  // lapsed members to "expired" before they show up as such here.
+  await reconcileExpiredMembers();
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const search = searchParams.get("search");
@@ -97,6 +100,9 @@ export async function POST(req: NextRequest) {
   // already point at a properly agent-configured device.
   const device = await resolveActiveGymDevice(deviceId);
 
+  const amountPaidNum = amountPaid ?? plan.fees;
+  const pendingAmount = Math.max(0, plan.fees - amountPaidNum);
+
   const member = await Member.create({
     deviceUserId,
     name,
@@ -110,12 +116,15 @@ export async function POST(req: NextRequest) {
     membershipEnd,
     status: "active",
     device: device?._id,
+    pendingAmount,
   });
 
   await Payment.create({
     member: member._id,
     plan: plan._id,
-    amount: amountPaid ?? plan.fees,
+    amount: amountPaidNum,
+    dueAmount: plan.fees,
+    balanceAfter: pendingAmount,
     type: "new",
     method: paymentMethod || "cash",
     periodStart: membershipStart,

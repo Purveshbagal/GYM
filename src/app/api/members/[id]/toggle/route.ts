@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Member from "@/models/Member";
 import { getAuth } from "@/lib/auth";
-import { queueDeviceJob } from "@/lib/deviceJobs";
+import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 // Lets staff manually suspend/restore a member's door access outside the
 // normal expiry flow (e.g. payment dispute, temporary hold).
@@ -17,18 +17,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   member.status = enable ? "active" : "inactive";
   await member.save();
 
+  const device = await resolveActiveGymDevice(member.device);
   let deviceSync: unknown = null;
-  if (member.device) {
+  if (device) {
+    if (String(member.device ?? "") !== String(device._id)) {
+      member.device = device._id;
+      await member.save();
+    }
     try {
       deviceSync = enable
-        ? await queueDeviceJob(member.device, member._id, "SYNC_USER", {
+        ? await queueDeviceJob(device._id, member._id, "SYNC_USER", {
             employeeNo: member.deviceUserId,
             name: member.name,
             validFrom: (member.membershipStart || new Date()).toISOString(),
             validTo: (member.membershipEnd || new Date()).toISOString(),
             enable: true,
           })
-        : await queueDeviceJob(member.device, member._id, "DISABLE_ACCESS", {
+        : await queueDeviceJob(device._id, member._id, "DISABLE_ACCESS", {
             employeeNo: member.deviceUserId,
             name: member.name,
           });

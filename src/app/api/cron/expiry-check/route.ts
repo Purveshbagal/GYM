@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import Member from "@/models/Member";
+import { reconcileExpiredMembers } from "@/lib/membership";
 
 export const dynamic = "force-dynamic";
 
@@ -9,15 +9,10 @@ export const dynamic = "force-dynamic";
  * (Valid.endTime is set at registration/renewal time), so this endpoint
  * only keeps our DB's status field in sync for reporting/renew-prompt UI.
  * Call it from scripts/cron.ts or any external scheduler once a day.
+ * (The same reconciliation also runs lazily on members/dashboard reads.)
  */
 export async function GET() {
   await connectDB();
-  const now = new Date();
-
-  const result = await Member.updateMany(
-    { status: "active", membershipEnd: { $lt: now } },
-    { $set: { status: "expired" } }
-  );
-
+  const result = await reconcileExpiredMembers();
   return NextResponse.json({ ok: true, expiredCount: result.modifiedCount });
 }

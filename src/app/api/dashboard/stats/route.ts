@@ -4,16 +4,20 @@ import Member from "@/models/Member";
 import Payment from "@/models/Payment";
 import AccessLog from "@/models/AccessLog";
 import { getAuth } from "@/lib/auth";
+import { reconcileExpiredMembers } from "@/lib/membership";
 
 export async function GET(req: NextRequest) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await connectDB();
+  // Keep activeMembers/expiredMembers trustworthy without waiting for the
+  // once-daily cron script to have already run.
+  await reconcileExpiredMembers();
 
   const now = new Date();
   const in7Days = new Date(now.getTime() + 7 * 86400000);
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const [totalMembers, activeMembers, expiredMembers, expiringSoon, totalCollection, todayVisits] =
+  const [totalMembers, activeMembers, expiredMembers, expiringSoon, totalCollection, todayVisits, pendingAgg] =
     await Promise.all([
       Member.countDocuments(),
       Member.countDocuments({ status: "active" }),
@@ -31,6 +35,10 @@ export async function GET(req: NextRequest) {
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       AccessLog.countDocuments({ occurredAt: { $gte: startOfDay }, result: "granted" }),
+      Member.aggregate([
+        { $match: { pendingAmount: { $gt: 0 } } },
+        { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$pendingAmount" } } },
+      ]),
     ]);
 
   return NextResponse.json({
@@ -40,5 +48,9 @@ export async function GET(req: NextRequest) {
     expiringSoon,
     totalCollection: totalCollection[0]?.total || 0,
     todayVisits,
+    pendingPayments: {
+      count: pendingAgg[0]?.count || 0,
+      total: pendingAgg[0]?.total || 0,
+    },
   });
 }

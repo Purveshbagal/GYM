@@ -25,6 +25,12 @@ const MemberSchema = new Schema(
       default: "inactive",
     },
 
+    // Running balance of unpaid fees across new-membership/renewal cycles,
+    // reduced by standalone "Payment In" transactions. Kept as a stored
+    // running total (rather than recomputed from Payment history) so it's
+    // cheap to filter/sum for the dashboard's pending-payments view.
+    pendingAmount: { type: Number, default: 0 },
+
     // Legacy flag, kept for the existing mobile UI - the job-result
     // handler keeps it in sync (true once either fingerprint or face is
     // enrolled) so old and new UI paths agree.

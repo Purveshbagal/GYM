@@ -5,7 +5,7 @@ import MembershipPlan from "@/models/MembershipPlan";
 import Payment from "@/models/Payment";
 import { getAuth } from "@/lib/auth";
 import { addMonths } from "@/lib/membership";
-import { queueDeviceJob } from "@/lib/deviceJobs";
+import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,26 +26,43 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       : new Date();
   const newEnd = addMonths(base, plan.durationMonths);
 
+  const amountPaidNum = amountPaid ?? plan.fees;
+  const newPending = Math.max(0, (member.pendingAmount ?? 0) + plan.fees - amountPaidNum);
+
   member.currentPlan = plan._id;
   member.membershipStart = member.membershipStart || new Date();
   member.membershipEnd = newEnd;
   member.status = "active";
+  member.pendingAmount = newPending;
   await member.save();
 
   await Payment.create({
     member: member._id,
     plan: plan._id,
-    amount: amountPaid ?? plan.fees,
+    amount: amountPaidNum,
+    dueAmount: plan.fees,
+    balanceAfter: newPending,
     type: "renewal",
     method: paymentMethod || "cash",
     periodStart: base,
     periodEnd: newEnd,
   });
 
+  // Resolve "the gym's device" the same robust way members/route.ts POST
+  // does, instead of trusting member.device directly - that field can be
+  // empty (member created before any agent-configured device existed) or
+  // stale (agent reinstalled/reconfigured since), in which case the old
+  // `if (member.device)` check silently skipped queueing any sync job at
+  // all, leaving the terminal enforcing the pre-renewal expiry window.
+  const device = await resolveActiveGymDevice(member.device);
   let deviceSync: unknown = null;
-  if (member.device) {
+  if (device) {
+    if (String(member.device ?? "") !== String(device._id)) {
+      member.device = device._id;
+      await member.save();
+    }
     try {
-      deviceSync = await queueDeviceJob(member.device, member._id, "SYNC_USER", {
+      deviceSync = await queueDeviceJob(device._id, member._id, "SYNC_USER", {
         employeeNo: member.deviceUserId,
         name: member.name,
         validFrom: member.membershipStart.toISOString(),
