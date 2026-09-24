@@ -1,0 +1,14 @@
+name: Deploy GYM Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Deploy
+        run: |
+          curl -X POST https://deploy.awaitware.com/gymbackend
