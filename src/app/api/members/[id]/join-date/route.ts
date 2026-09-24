@@ -39,6 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   member.membershipStart = newStart;
   member.membershipEnd = newEnd;
   member.status = computeStatus(newEnd);
+  // The window moved - let it earn its own 7-day/expired reminders instead
+  // of possibly skipping one because the old window already sent it.
+  member.notifiedExpiry7Day = false;
+  member.notifiedExpired = false;
   await member.save();
 
   const device = await resolveActiveGymDevice(member.device);

@@ -40,6 +40,12 @@ const MemberSchema = new Schema(
     device: { type: Schema.Types.ObjectId, ref: "Device" },
 
     notes: { type: String },
+
+    // Guards against re-sending the same WhatsApp reminder every day the
+    // cron runs while a member stays in that state. Reset to false on
+    // create/renew so a fresh membership window gets its own reminders.
+    notifiedExpiry7Day: { type: Boolean, default: false },
+    notifiedExpired: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

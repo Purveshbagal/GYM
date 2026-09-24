@@ -7,6 +7,7 @@ import Payment from "@/models/Payment";
 import { getAuth } from "@/lib/auth";
 import { addMonths, reconcileExpiredMembers } from "@/lib/membership";
 import { queueDeviceJob, resolveActiveGymDevice } from "@/lib/deviceJobs";
+import { sendWelcomeWhatsApp } from "@/lib/whatsapp";
 
 export async function GET(req: NextRequest) {
   if (!getAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -144,6 +145,10 @@ export async function POST(req: NextRequest) {
       deviceSync = { ok: false, error: String(err) };
     }
   }
+
+  // Best-effort: a WhatsApp delivery failure must never fail member
+  // creation, sendWelcomeWhatsApp already swallows its own errors.
+  sendWelcomeWhatsApp(member).catch(() => {});
 
   const populated = await member.populate("currentPlan");
   return NextResponse.json(

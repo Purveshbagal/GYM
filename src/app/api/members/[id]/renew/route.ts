@@ -34,6 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   member.membershipEnd = newEnd;
   member.status = "active";
   member.pendingAmount = newPending;
+  // New membership window - let it earn its own 7-day/expired reminders.
+  member.notifiedExpiry7Day = false;
+  member.notifiedExpired = false;
   await member.save();
 
   await Payment.create({
